@@ -2,6 +2,8 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream;
 
+use super::super::util::quote::quote_option;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParameterType {
     String,
@@ -38,7 +40,64 @@ impl ToTokens for ParameterType {
 #[derive(Clone, Debug, Default)]
 pub struct ParameterChoice<T> {
     name: String,
-    value: T
+    value: T,
+}
+impl<T> ParameterChoice<T> {
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+}
+impl ParameterChoice<i64> {
+    pub fn new(name: impl Into<String>, value: i64) -> Self {
+        let name = name.into();
+        assert!(!name.is_empty() && name.len() <= 100);
+        let value = value.into();
+        Self { name, value }
+    }   
+}
+impl ToTokens for ParameterChoice<i64> {
+    fn to_tokens(&self, stream: &mut TokenStream) {
+        let Self {name, value} = self;
+        stream.extend(quote! {
+            car::ParameterChoice::<i64>::new(#name, #value)
+        });
+    }
+}
+impl ParameterChoice<f64> {
+    pub fn new(name: impl Into<String>, value: f64) -> Self {
+        let name = name.into();
+        assert!(!name.is_empty() && name.len() <= 100);
+        let value = value.into();
+        Self { name, value }
+    }   
+}
+impl ToTokens for ParameterChoice<f64> {
+    fn to_tokens(&self, stream: &mut TokenStream) {
+        let Self {name, value} = self;
+        stream.extend(quote! {
+            car::ParameterChoice::<f64>::new(#name, #value)
+        });
+    }
+}
+impl ParameterChoice<String> {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        let name = name.into();
+        let value = value.into();
+        assert!(!name.is_empty() && name.len() <= 100);
+        assert!(!value.is_empty() && value.len() <= 100);
+        Self { name, value }
+    }   
+}
+impl ToTokens for ParameterChoice<String> {
+    fn to_tokens(&self, stream: &mut TokenStream) {
+        let Self {name, value} = self;
+        stream.extend(quote! {
+            car::ParameterChoice::<String>::new(#name, #value)
+        });
+    }
 }
 
 #[derive(Debug)]
@@ -119,12 +178,28 @@ impl ToTokens for Parameter {
             min_length,
             max_length,
         } = self;
+        let min_value_int = quote_option(min_value_int);
+        let max_value_int = quote_option(max_value_int);
+        let min_value_number = quote_option(min_value_number);
+        let max_value_number = quote_option(max_value_number);
+        let min_length = quote_option(min_length);
+        let max_length = quote_option(max_length);
+
         stream.extend(quote! {
             car::Parameter::builder()
                 .name(#name)
                 .description(#description)
                 .kind(#kind)
                 .required(#required)
+                #(.choice_string(#choices_string))*
+                #(.choice_int(#choices_int))*
+                #(.choice_number(#choices_number))*
+                .min_value_int(#min_value_int)
+                .max_value_int(#max_value_int)
+                .min_value_number(#min_value_number)
+                .max_value_number(#max_value_number)
+                .min_length(#min_length)
+                .max_length(#max_length)
                 .build()
         })
     }
@@ -238,8 +313,8 @@ impl ParameterBuilder {
         assert!(self.choices_number.len() <= 25);
 
         assert!(self.choices_string.len() == 0 || self.kind == Some(ParameterType::String));
-        assert!(self.choices_int.len() == 0 || self.kind == Some(ParameterType::Number));
-        assert!(self.choices_number.len() == 0 || self.kind == Some(ParameterType::Int));
+        assert!(self.choices_int.len() == 0 || self.kind == Some(ParameterType::Int));
+        assert!(self.choices_number.len() == 0 || self.kind == Some(ParameterType::Number));
         
         Parameter {
             name: self.name.clone(),
