@@ -84,3 +84,19 @@ impl Parse for FunctionParse {
         })
     }
 }
+
+pub struct StructParse {
+    pub visibility: Visibility,
+    pub name: Ident
+}
+impl Parse for StructParse {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let visibility: Visibility = input.parse()?;
+        input.parse::<Token![struct]>()?;
+        let name: Ident = input.parse()?;
+        Ok(Self {
+            visibility,
+            name
+        })
+    }
+}

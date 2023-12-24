@@ -1,9 +1,3 @@
-
-use quote::{quote, ToTokens};
-use proc_macro2::TokenStream;
-
-use super::super::util::quote::quote_option;
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParameterType {
     String,
@@ -11,32 +5,6 @@ pub enum ParameterType {
     Bool,
     Number
 }
-impl ParameterType {
-    pub fn from_fn_parameter(parameter_type: &str) -> Self {
-        match parameter_type {
-            "String" => Self::String,
-            "Option < String >" => Self::String,
-            "i64" => Self::Int,
-            "Option < i64 >" => Self::Int,
-            "f64" => Self::Number,
-            "Option < f64 >" => Self::Number,
-            "bool" => Self::Bool,
-            "Option < bool >" => Self::Bool,
-            _ => panic!("invalid parameter type")
-        }
-    }
-}
-impl ToTokens for ParameterType {
-    fn to_tokens(&self, stream: &mut TokenStream) {
-        stream.extend(match self {
-            Self::String => quote! {car::ParameterType::String},
-            Self::Int => quote! {car::ParameterType::Int},
-            Self::Bool => quote! {car::ParameterType::Bool},
-            Self::Number => quote! {car::ParameterType::Number},
-        });
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct ParameterChoice<T> {
     name: String,
@@ -58,14 +26,6 @@ impl ParameterChoice<i64> {
         Self { name, value }
     }   
 }
-impl ToTokens for ParameterChoice<i64> {
-    fn to_tokens(&self, stream: &mut TokenStream) {
-        let Self {name, value} = self;
-        stream.extend(quote! {
-            car::ParameterChoice::<i64>::new(#name, #value)
-        });
-    }
-}
 impl ParameterChoice<f64> {
     pub fn new(name: impl Into<String>, value: f64) -> Self {
         let name = name.into();
@@ -73,14 +33,6 @@ impl ParameterChoice<f64> {
         let value = value.into();
         Self { name, value }
     }   
-}
-impl ToTokens for ParameterChoice<f64> {
-    fn to_tokens(&self, stream: &mut TokenStream) {
-        let Self {name, value} = self;
-        stream.extend(quote! {
-            car::ParameterChoice::<f64>::new(#name, #value)
-        });
-    }
 }
 impl ParameterChoice<String> {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
@@ -90,14 +42,6 @@ impl ParameterChoice<String> {
         assert!(!value.is_empty() && value.len() <= 100);
         Self { name, value }
     }   
-}
-impl ToTokens for ParameterChoice<String> {
-    fn to_tokens(&self, stream: &mut TokenStream) {
-        let Self {name, value} = self;
-        stream.extend(quote! {
-            car::ParameterChoice::<String>::new(#name, #value)
-        });
-    }
 }
 
 #[derive(Debug)]
@@ -159,49 +103,6 @@ impl Parameter {
     }
     pub fn builder() -> ParameterBuilder {
         ParameterBuilder::new()
-    }
-}
-impl ToTokens for Parameter {
-    fn to_tokens(&self, stream: &mut TokenStream) {
-        let Self {
-            name,
-            description,
-            kind,
-            required,
-            choices_string,
-            choices_int,
-            choices_number,
-            min_value_int,
-            max_value_int,
-            min_value_number,
-            max_value_number,
-            min_length,
-            max_length,
-        } = self;
-        let min_value_int = quote_option(min_value_int);
-        let max_value_int = quote_option(max_value_int);
-        let min_value_number = quote_option(min_value_number);
-        let max_value_number = quote_option(max_value_number);
-        let min_length = quote_option(min_length);
-        let max_length = quote_option(max_length);
-
-        stream.extend(quote! {
-            car::Parameter::builder()
-                .name(#name)
-                .description(#description)
-                .kind(#kind)
-                .required(#required)
-                #(.choice_string(#choices_string))*
-                #(.choice_int(#choices_int))*
-                #(.choice_number(#choices_number))*
-                .min_value_int(#min_value_int)
-                .max_value_int(#max_value_int)
-                .min_value_number(#min_value_number)
-                .max_value_number(#max_value_number)
-                .min_length(#min_length)
-                .max_length(#max_length)
-                .build()
-        })
     }
 }
 

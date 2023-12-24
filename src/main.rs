@@ -18,6 +18,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
+struct CmdGroup;
+
 #[car::command(
     name = "name here",
     description = "description here",
@@ -31,6 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         name = "arg2",
         description = "description2",
         choice_string(name="asdasdd", value="value"),
+        choice_string(name="asda", value="asdasfsfd"),
         min_length = 2,
         max_length = 40
     ),
