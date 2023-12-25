@@ -1,8 +1,8 @@
 use std::{collections::HashMap, future::Future, pin::Pin};
 
-use super::parameter::Parameter;
-use super::context::Context;
 use super::argument::Argument;
+use super::context::Context;
+use super::parameter::Parameter;
 
 pub type CommandResult = Result<(), ()>;
 
@@ -13,7 +13,7 @@ pub struct Command {
     name: String,
     description: String,
     parameters: Vec<Parameter>,
-    function: CommandFunction
+    function: CommandFunction,
 }
 impl Command {
     pub fn run(&self, ctx: Context, args: HashMap<String, Argument>) -> BoxedFuture<CommandResult> {
@@ -35,6 +35,7 @@ impl Command {
 #[derive(Default)]
 pub struct CommandBuilder {
     name: String,
+    category: String,
     description: String,
     parameters: Vec<Parameter>,
     function: Option<CommandFunction>,
@@ -45,6 +46,10 @@ impl CommandBuilder {
     }
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = name.into();
+        self
+    }
+    pub fn category(mut self, category: impl Into<String>) -> Self {
+        self.category = category.into();
         self
     }
     pub fn description(mut self, description: impl Into<String>) -> Self {

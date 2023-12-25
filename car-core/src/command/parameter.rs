@@ -3,7 +3,7 @@ pub enum ParameterType {
     String,
     Int,
     Bool,
-    Number
+    Number,
 }
 #[derive(Clone, Debug, Default)]
 pub struct ParameterChoice<T> {
@@ -24,7 +24,7 @@ impl ParameterChoice<i64> {
         assert!(!name.is_empty() && name.len() <= 100);
         let value = value.into();
         Self { name, value }
-    }   
+    }
 }
 impl ParameterChoice<f64> {
     pub fn new(name: impl Into<String>, value: f64) -> Self {
@@ -32,7 +32,7 @@ impl ParameterChoice<f64> {
         assert!(!name.is_empty() && name.len() <= 100);
         let value = value.into();
         Self { name, value }
-    }   
+    }
 }
 impl ParameterChoice<String> {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
@@ -41,7 +41,7 @@ impl ParameterChoice<String> {
         assert!(!name.is_empty() && name.len() <= 100);
         assert!(!value.is_empty() && value.len() <= 100);
         Self { name, value }
-    }   
+    }
 }
 
 #[derive(Debug)]
@@ -200,10 +200,13 @@ impl ParameterBuilder {
         if let Some(max_length) = self.max_length {
             assert!(0 <= max_length && max_length <= 6000);
         }
-        if let (Some(min_value_int), Some(max_value_int)) = (self.min_value_int, self.max_value_int) {
+        if let (Some(min_value_int), Some(max_value_int)) = (self.min_value_int, self.max_value_int)
+        {
             assert!(min_value_int <= max_value_int);
         }
-        if let (Some(min_value_number), Some(max_value_number)) = (self.min_value_number, self.max_value_number) {
+        if let (Some(min_value_number), Some(max_value_number)) =
+            (self.min_value_number, self.max_value_number)
+        {
             assert!(min_value_number <= max_value_number);
         }
         if let (Some(min_length), Some(max_length)) = (self.min_length, self.max_length) {
@@ -216,7 +219,7 @@ impl ParameterBuilder {
         assert!(self.choices_string.len() == 0 || self.kind == Some(ParameterType::String));
         assert!(self.choices_int.len() == 0 || self.kind == Some(ParameterType::Int));
         assert!(self.choices_number.len() == 0 || self.kind == Some(ParameterType::Number));
-        
+
         Parameter {
             name: self.name.clone(),
             description: self.description.clone(),

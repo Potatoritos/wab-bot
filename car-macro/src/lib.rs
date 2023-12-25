@@ -131,7 +131,6 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             min_length,
             max_length,
         } = parameter_macro_args;
-        
 
         let choices_string: Vec<TokenStream2> = choice_string
             .into_iter()
@@ -193,7 +192,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         });
     }
 
-    let build = Ident::new(&format!("car_build_{}", &fn_name), fn_name.span());
+    let builder = Ident::new(&format!("car_builder_{}", &fn_name), fn_name.span());
     let wrap = Ident::new(&format!("car_wrap_{}", &fn_name), fn_name.span());
     let function = Ident::new(&format!("car_fn_{}", &fn_name), fn_name.span());
 
@@ -201,19 +200,18 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     let command_description = attr_args.description;
 
     (quote! {
-        #visibility fn #build() -> car::Command {
+        #visibility fn #builder() -> car::CommandBuilder {
             car::Command::builder()
                 .name(#command_name)
                 .description(#command_description)
                 #(.parameter(#parameters))*
                 .function(#wrap as car::CommandFunction)
-                .build()
         }
-        #visibility fn #wrap(ctx: car::Context, mut args: std::collections::HashMap<String, car::Argument>) -> car::BoxedFuture<#output> {
+        fn #wrap(ctx: car::Context, mut args: std::collections::HashMap<String, car::Argument>) -> car::BoxedFuture<#output> {
             #(#arg_conversions)*
             #function(ctx, #(#fn_parameter_names),*)
         }
-        #visibility fn #function(#(#fn_parameters),*) -> car::BoxedFuture<#output> {
+        fn #function(#(#fn_parameters),*) -> car::BoxedFuture<#output> {
             Box::pin(async move {
                 #(#body)*
             })
@@ -229,11 +227,41 @@ fn quote_option<T: ToTokens>(option: &Option<T>) -> TokenStream2 {
     }
 }
 
+#[derive(Debug)]
+struct IdentList {
+    idents: Vec<Ident>,
+}
+impl FromMeta for IdentList {
+    fn from_list(items: &[NestedMeta]) -> Result<Self, darling::Error> {
+        let mut idents = Vec::new();
+
+        for item in items {
+            match item {
+                NestedMeta::Meta(syn::Meta::Path(path)) => {
+                    if let Some(ident) = path.get_ident() {
+                        idents.push(ident.clone());
+                    } else {
+                        return Err(darling::Error::unexpected_type(
+                            &path.to_token_stream().to_string(),
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(darling::Error::unexpected_type(
+                        &item.to_token_stream().to_string(),
+                    ));
+                }
+            }
+        }
+
+        Ok(IdentList { idents })
+    }
+}
+
 #[derive(Debug, FromMeta)]
 struct GroupMacroArgs {
-    name: String,
-    #[darling(default, multiple)]
-    command: Vec<Ident>,
+    category: String,
+    commands: IdentList,
 }
 
 #[proc_macro_attribute]
@@ -255,10 +283,50 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         name: struct_name,
     } = parse_macro_input!(input as StructParse);
 
+    let name_string = camel_to_snake_case(&struct_name.to_string());
+    let name = Ident::new(&name_string.to_ascii_uppercase(), struct_name.span());
+    let build_commands = Ident::new(
+        &format!("car_group_commands_{}", &name_string),
+        struct_name.span(),
+    );
+    let setup = Ident::new(&format!("car_setup_{}", &name_string), struct_name.span());
+
+    let command_builders: Vec<Ident> = attr_args
+        .commands
+        .idents
+        .into_iter()
+        .map(|x| Ident::new(&format!("car_builder_{}", x.to_string()), x.span()))
+        .collect();
+    let category = attr_args.category;
+
     (quote! {
-        #visibility struct #struct_name {
-            commands: Vec<car::Command>
+        fn #build_commands() -> Vec<car::Command> {
+            let mut commands = Vec::new();
+            #(commands.push(
+                #command_builders()
+                    .category(#category)
+                    .build()
+            );)*
+            commands
         }
+        fn #setup() {
+
+        }
+        #visibility static #name: car::Group = car::Group {
+            build_commands: #build_commands,
+            setup: #setup
+        };
     })
     .into()
+}
+
+fn camel_to_snake_case(s: &str) -> String {
+    let mut result = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            result.push('_');
+        }
+        result.push(c.to_ascii_lowercase());
+    }
+    result
 }

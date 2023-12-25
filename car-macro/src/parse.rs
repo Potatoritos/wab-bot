@@ -94,6 +94,7 @@ impl Parse for StructParse {
         let visibility: Visibility = input.parse()?;
         input.parse::<Token![struct]>()?;
         let name: Ident = input.parse()?;
+        input.parse::<Token![;]>()?;
         Ok(Self {
             visibility,
             name
