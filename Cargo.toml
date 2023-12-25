@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 car = { path = "./car" }
 tokio = { version = "1.33.0", features = ["full"] }
+typemap = "0.3.3"

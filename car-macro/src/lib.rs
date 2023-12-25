@@ -219,6 +219,25 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
     }).into()
 }
 
+#[proc_macro_attribute]
+pub fn box_async(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let FunctionParse {
+        attributes: _,
+        visibility,
+        name,
+        fn_parameters,
+        output,
+        body,
+    } = parse_macro_input!(input as FunctionParse);
+    (quote! {
+        #visibility fn #name(#(#fn_parameters),*) -> car::BoxedFuture<#output> {
+            Box::pin(async move {
+                #(#body)*
+            })
+        }
+    }).into()
+}
+
 fn quote_option<T: ToTokens>(option: &Option<T>) -> TokenStream2 {
     if option.is_some() {
         quote! {Some(#option)}
@@ -262,6 +281,7 @@ impl FromMeta for IdentList {
 struct GroupMacroArgs {
     category: String,
     commands: IdentList,
+    init: Option<Ident>
 }
 
 #[proc_macro_attribute]
@@ -289,8 +309,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         &format!("car_group_commands_{}", &name_string),
         struct_name.span(),
     );
-    let setup = Ident::new(&format!("car_setup_{}", &name_string), struct_name.span());
-
+    
     let command_builders: Vec<Ident> = attr_args
         .commands
         .idents
@@ -298,6 +317,13 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         .map(|x| Ident::new(&format!("car_builder_{}", x.to_string()), x.span()))
         .collect();
     let category = attr_args.category;
+    
+    let init = quote_option(&attr_args.init);
+    // if let Some(init_fn_name) = attr_args.init {
+        // init = quote! {#init_fn_name}
+    // } else {
+        // init = quote! {None}
+    // }
 
     (quote! {
         fn #build_commands() -> Vec<car::Command> {
@@ -309,12 +335,9 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
             );)*
             commands
         }
-        fn #setup() {
-
-        }
         #visibility static #name: car::Group = car::Group {
             build_commands: #build_commands,
-            setup: #setup
+            init: #init
         };
     })
     .into()

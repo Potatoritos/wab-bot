@@ -67,7 +67,7 @@ impl Parse for FunctionParse {
 
         let output = match input.parse::<ReturnType>()? {
             ReturnType::Type(_, ty) => (*ty).clone(),
-            ReturnType::Default => return Err(input.error("expected return type")),
+            ReturnType::Default => syn::Type::Verbatim(quote!{()}),
         };
 
         let body;
