@@ -12,30 +12,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         init(state.clone()).await;
     }
 
-    let ctx = car::Context {
+    let ctx = wab::Context {
         state: state.clone(),
     };
     let mut args = HashMap::new();
-    args.insert(String::from("arg1"), car::Argument::Int(2));
+    args.insert(String::from("arg1"), wab::Argument::Int(2));
     args.insert(
         String::from("arg2"),
-        car::Argument::OptionalString(Some(String::from("va"))),
+        wab::Argument::OptionalString(Some(String::from("va"))),
     );
-    args.insert(String::from("arg3"), car::Argument::Number(2.5));
+    args.insert(String::from("arg3"), wab::Argument::Number(2.5));
 
     let commands = (CMD_GROUP.build_commands)();
     let _ = commands[0].run(ctx, args).await;
     
-    let ctx = car::Context {
+    let ctx = wab::Context {
         state: state.clone()
     };
     let mut args = HashMap::new();
-    args.insert(String::from("arg1"), car::Argument::Int(2));
+    args.insert(String::from("arg1"), wab::Argument::Int(2));
     args.insert(
         String::from("arg2"),
-        car::Argument::OptionalString(Some(String::from("va"))),
+        wab::Argument::OptionalString(Some(String::from("va"))),
     );
-    args.insert(String::from("arg3"), car::Argument::Number(2.5));
+    args.insert(String::from("arg3"), wab::Argument::Number(2.5));
 
     let _ = commands[0].run(ctx, args).await;
 
@@ -50,20 +50,20 @@ impl Key for CmdState {
     type Value = Arc<RwLock<CmdState>>;
 }
 
-#[car::box_async]
+#[wab::box_async]
 async fn init(state: Arc<RwLock<TypeMap>>) {
     let mut write = state.write().await;
     write.insert::<CmdState>(Arc::new(RwLock::new(CmdState {x: 5})));   
 }
 
-#[car::group(
+#[wab::group(
     category = "category here",
     commands(cmd, cmd2),
     init = init
 )]
 pub struct CmdGroup;
 
-#[car::command(
+#[wab::command(
     name = "name here",
     description = "description here",
     parameter(
@@ -88,11 +88,11 @@ pub struct CmdGroup;
     )
 )]
 pub async fn cmd(
-    ctx: car::Context,
+    ctx: wab::Context,
     mut arg1: i64,
     mut arg2: Option<String>,
     mut arg3: f64,
-) -> car::CommandResult {
+) -> wab::CommandResult {
     println!("boing1");
     boing().await;
     let lock = ctx.get_state::<CmdState>().await;
@@ -111,7 +111,7 @@ pub async fn boing() {
     println!("asdad");
 }
 
-#[car::command(name = "cmd2 name", description = "cmd2 desc")]
-pub async fn cmd2(ctx: car::Context) -> car::CommandResult {
+#[wab::command(name = "cmd2 name", description = "cmd2 desc")]
+pub async fn cmd2(ctx: wab::Context) -> wab::CommandResult {
     Ok(())
 }

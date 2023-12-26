@@ -81,36 +81,36 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                 required = !ident_str.starts_with("Option");
                 match ident_str.as_str() {
                     "String" => (
-                        quote! {car::Argument::String},
-                        quote! {car::ParameterType::String},
+                        quote! {wab::Argument::String},
+                        quote! {wab::ParameterType::String},
                     ),
                     "Option < String >" => (
-                        quote! {car::Argument::OptionalString},
-                        quote! {car::ParameterType::String},
+                        quote! {wab::Argument::OptionalString},
+                        quote! {wab::ParameterType::String},
                     ),
                     "i64" => (
-                        quote! {car::Argument::Int},
-                        quote! {car::ParameterType::Int},
+                        quote! {wab::Argument::Int},
+                        quote! {wab::ParameterType::Int},
                     ),
                     "Option < i64 >" => (
-                        quote! {car::Argument::OptionalInt},
-                        quote! {car::ParameterType::Int},
+                        quote! {wab::Argument::OptionalInt},
+                        quote! {wab::ParameterType::Int},
                     ),
                     "f64" => (
-                        quote! {car::Argument::Number},
-                        quote! {car::ParameterType::Number},
+                        quote! {wab::Argument::Number},
+                        quote! {wab::ParameterType::Number},
                     ),
                     "Option < f64 >" => (
-                        quote! {car::Argument::OptionalNumber},
-                        quote! {car::ParameterType::Number},
+                        quote! {wab::Argument::OptionalNumber},
+                        quote! {wab::ParameterType::Number},
                     ),
                     "bool" => (
-                        quote! {car::Argument::Bool},
-                        quote! {car::ParameterType::Bool},
+                        quote! {wab::Argument::Bool},
+                        quote! {wab::ParameterType::Bool},
                     ),
                     "Option < bool >" => (
-                        quote! {car::Argument::OptionalBool},
-                        quote! {car::ParameterType::Bool},
+                        quote! {wab::Argument::OptionalBool},
+                        quote! {wab::ParameterType::Bool},
                     ),
                     _ => panic!("invalid parameter type"),
                 }
@@ -137,7 +137,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             .map(|x| {
                 let name = x.name;
                 let value = x.value;
-                quote! {car::ParameterChoice::<String>::new(#name, #value)}
+                quote! {wab::ParameterChoice::<String>::new(#name, #value)}
             })
             .collect();
         let choices_int: Vec<TokenStream2> = choice_int
@@ -145,7 +145,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             .map(|x| {
                 let name = x.name;
                 let value = x.value;
-                quote! {car::ParameterChoice::<i64>::new(#name, #value)}
+                quote! {wab::ParameterChoice::<i64>::new(#name, #value)}
             })
             .collect();
         let choices_number: Vec<TokenStream2> = choice_number
@@ -153,7 +153,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             .map(|x| {
                 let name = x.name;
                 let value = x.value;
-                quote! {car::ParameterChoice::<i64>::new(#name, #value)}
+                quote! {wab::ParameterChoice::<i64>::new(#name, #value)}
             })
             .collect();
 
@@ -165,7 +165,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         let max_length = quote_option(&max_length);
 
         parameters.push(quote! {
-            car::Parameter::builder()
+            wab::Parameter::builder()
                 .name(#arg_name)
                 .description(#description)
                 .kind(#parameter_type)
@@ -192,26 +192,26 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         });
     }
 
-    let builder = Ident::new(&format!("car_builder_{}", &fn_name), fn_name.span());
-    let wrap = Ident::new(&format!("car_wrap_{}", &fn_name), fn_name.span());
-    let function = Ident::new(&format!("car_fn_{}", &fn_name), fn_name.span());
+    let builder = Ident::new(&format!("wab_builder_{}", &fn_name), fn_name.span());
+    let wrap = Ident::new(&format!("wab_wrap_{}", &fn_name), fn_name.span());
+    let function = Ident::new(&format!("wab_fn_{}", &fn_name), fn_name.span());
 
     let command_name = attr_args.name;
     let command_description = attr_args.description;
 
     (quote! {
-        #visibility fn #builder() -> car::CommandBuilder {
-            car::Command::builder()
+        #visibility fn #builder() -> wab::CommandBuilder {
+            wab::Command::builder()
                 .name(#command_name)
                 .description(#command_description)
                 #(.parameter(#parameters))*
-                .function(#wrap as car::CommandFunction)
+                .function(#wrap as wab::CommandFunction)
         }
-        fn #wrap(ctx: car::Context, mut args: std::collections::HashMap<String, car::Argument>) -> car::BoxedFuture<#output> {
+        fn #wrap(ctx: wab::Context, mut args: std::collections::HashMap<String, wab::Argument>) -> wab::BoxedFuture<#output> {
             #(#arg_conversions)*
             #function(ctx, #(#fn_parameter_names),*)
         }
-        fn #function(#(#fn_parameters),*) -> car::BoxedFuture<#output> {
+        fn #function(#(#fn_parameters),*) -> wab::BoxedFuture<#output> {
             Box::pin(async move {
                 #(#body)*
             })
@@ -230,7 +230,7 @@ pub fn box_async(_attr: TokenStream, input: TokenStream) -> TokenStream {
         body,
     } = parse_macro_input!(input as FunctionParse);
     (quote! {
-        #visibility fn #name(#(#fn_parameters),*) -> car::BoxedFuture<#output> {
+        #visibility fn #name(#(#fn_parameters),*) -> wab::BoxedFuture<#output> {
             Box::pin(async move {
                 #(#body)*
             })
@@ -306,7 +306,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
     let name_string = camel_to_snake_case(&struct_name.to_string());
     let name = Ident::new(&name_string.to_ascii_uppercase(), struct_name.span());
     let build_commands = Ident::new(
-        &format!("car_group_commands_{}", &name_string),
+        &format!("wab_group_commands_{}", &name_string),
         struct_name.span(),
     );
     
@@ -314,7 +314,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         .commands
         .idents
         .into_iter()
-        .map(|x| Ident::new(&format!("car_builder_{}", x.to_string()), x.span()))
+        .map(|x| Ident::new(&format!("wab_builder_{}", x.to_string()), x.span()))
         .collect();
     let category = attr_args.category;
     
@@ -326,7 +326,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
     // }
 
     (quote! {
-        fn #build_commands() -> Vec<car::Command> {
+        fn #build_commands() -> Vec<wab::Command> {
             let mut commands = Vec::new();
             #(commands.push(
                 #command_builders()
@@ -335,7 +335,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
             );)*
             commands
         }
-        #visibility static #name: car::Group = car::Group {
+        #visibility static #name: wab::Group = wab::Group {
             build_commands: #build_commands,
             init: #init
         };

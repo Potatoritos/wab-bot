@@ -1,5 +1,5 @@
 /target
-/car/target
-/car-core/target
-/car-macro/target
+/wab/target
+/wab-core/target
+/wab-macro/target
 .vscode
