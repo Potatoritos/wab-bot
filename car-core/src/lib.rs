@@ -1,5 +1,6 @@
 pub mod argument;
 pub mod command;
+pub mod bot;
 pub mod context;
 pub mod group;
 pub mod parameter;

@@ -5,6 +5,8 @@ use typemap::{Key, TypeMap};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    tracing_subscriber::fmt::init();
+
     let state = Arc::new(RwLock::new(TypeMap::new()));
     if let Some(init) = CMD_GROUP.init {
         init(state.clone()).await;
@@ -93,10 +95,7 @@ pub async fn cmd(
 ) -> car::CommandResult {
     println!("boing1");
     boing().await;
-    let lock = {
-        let read = ctx.state.read().await;
-        read.get::<CmdState>().expect("asd").clone()
-    };
+    let lock = ctx.get_state::<CmdState>().await;
     
     let count = {
         let mut counter = lock.write().await;
