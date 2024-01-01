@@ -1,5 +1,7 @@
 use std::{collections::HashMap, future::Future, pin::Pin};
 
+use twilight_model::application::command::CommandOption;
+
 use super::argument::Argument;
 use super::context::Context;
 use super::parameter::Parameter;
@@ -9,6 +11,7 @@ pub type CommandResult = Result<(), ()>;
 pub type BoxedFuture<T> = Pin<Box<dyn Future<Output = T>>>;
 pub type CommandFunction = fn(Context, HashMap<String, Argument>) -> BoxedFuture<CommandResult>;
 
+#[derive(Debug)]
 pub struct Command {
     name: String,
     description: String,
@@ -27,6 +30,27 @@ impl Command {
     }
     pub fn parameters(&self) -> &Vec<Parameter> {
         &self.parameters
+    }
+    pub fn create_twilight_command_options(&self) -> Vec<CommandOption> {
+        self.parameters
+            .iter()
+            .map(|p| CommandOption {
+                autocomplete: None,
+                channel_types: None,
+                choices: p.create_twilight_choices(),
+                description: String::from(p.description()),
+                description_localizations: None,
+                kind: p.kind().create_twilight_option_type(),
+                max_length: p.create_twilight_max_length(),
+                min_length: p.create_twilight_min_length(),
+                max_value: p.create_twilight_max_value(),
+                min_value: p.create_twilight_min_value(),
+                name: String::from(p.name()),
+                name_localizations: None,
+                options: None,
+                required: Some(p.required().clone()),
+            })
+            .collect()
     }
     pub fn builder() -> CommandBuilder {
         CommandBuilder::new()
@@ -70,6 +94,7 @@ impl CommandBuilder {
     }
     pub fn build(self) -> Command {
         assert!(!self.name.is_empty() && self.name.len() <= 32);
+        assert!(self.name.chars().filter(|c| c == &' ').count() <= 2);
         assert!(!self.description.is_empty() && self.description.len() <= 100);
         Command {
             name: self.name,

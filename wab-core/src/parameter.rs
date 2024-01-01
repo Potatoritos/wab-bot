@@ -1,46 +1,57 @@
+use twilight_model::application::command::{CommandOptionChoice, CommandOptionChoiceValue, CommandOptionType, CommandOptionValue};
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParameterType {
     String,
-    Int,
-    Bool,
+    Integer,
+    Boolean,
     Number,
 }
-#[derive(Clone, Debug, Default)]
-pub struct ParameterChoice<T> {
-    name: String,
-    value: T,
+impl ParameterType {
+    pub fn create_twilight_option_type(&self) -> CommandOptionType {
+        match self {
+            Self::String => CommandOptionType::String,
+            Self::Integer => CommandOptionType::Integer,
+            Self::Number => CommandOptionType::Number,
+            Self::Boolean => CommandOptionType::Boolean
+        }
+    }
 }
-impl<T> ParameterChoice<T> {
+#[derive(Clone, Debug)]
+pub enum ParameterChoiceType {
+    String(String),
+    Integer(i64),
+    Number(f64),
+}
+#[derive(Clone, Debug)]
+pub struct ParameterChoice {
+    name: String,
+    value: ParameterChoiceType,
+}
+impl ParameterChoice {
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
-    pub fn value(&self) -> &T {
+    pub fn value(&self) -> &ParameterChoiceType {
         &self.value
     }
-}
-impl ParameterChoice<i64> {
-    pub fn new(name: impl Into<String>, value: i64) -> Self {
-        let name = name.into();
-        assert!(!name.is_empty() && name.len() <= 100);
-        let value = value.into();
-        Self { name, value }
+    pub fn create_twilight_choice(&self) -> CommandOptionChoice {
+        let value = match &self.value {
+            ParameterChoiceType::Integer(v) => CommandOptionChoiceValue::Integer(v.clone()),
+            ParameterChoiceType::Number(v) => CommandOptionChoiceValue::Number(v.clone()),
+            ParameterChoiceType::String(v) => CommandOptionChoiceValue::String(v.clone()),
+        };
+        CommandOptionChoice {
+            name: self.name.clone(),
+            name_localizations: None,
+            value,
+        }
     }
-}
-impl ParameterChoice<f64> {
-    pub fn new(name: impl Into<String>, value: f64) -> Self {
-        let name = name.into();
-        assert!(!name.is_empty() && name.len() <= 100);
-        let value = value.into();
-        Self { name, value }
-    }
-}
-impl ParameterChoice<String> {
-    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        let name = name.into();
-        let value = value.into();
-        assert!(!name.is_empty() && name.len() <= 100);
-        assert!(!value.is_empty() && value.len() <= 100);
-        Self { name, value }
+    pub fn new(name: impl Into<String>, value: ParameterChoiceType) -> Self {
+        Self {
+            name: name.into(),
+            value,
+        }
     }
 }
 
@@ -50,9 +61,7 @@ pub struct Parameter {
     description: String,
     kind: ParameterType,
     required: bool,
-    choices_string: Vec<ParameterChoice<String>>,
-    choices_int: Vec<ParameterChoice<i64>>,
-    choices_number: Vec<ParameterChoice<f64>>,
+    choices: Vec<ParameterChoice>,
     min_value_int: Option<i64>,
     max_value_int: Option<i64>,
     min_value_number: Option<f64>,
@@ -74,14 +83,8 @@ impl Parameter {
     pub fn required(&self) -> &bool {
         &self.required
     }
-    pub fn choices_string(&self) -> &Vec<ParameterChoice<String>> {
-        &self.choices_string
-    }
-    pub fn choices_int(&self) -> &Vec<ParameterChoice<i64>> {
-        &self.choices_int
-    }
-    pub fn choices_number(&self) -> &Vec<ParameterChoice<f64>> {
-        &self.choices_number
+    pub fn choices(&self) -> &Vec<ParameterChoice> {
+        &self.choices
     }
     pub fn min_value_int(&self) -> &Option<i64> {
         &self.min_value_int
@@ -101,6 +104,49 @@ impl Parameter {
     pub fn max_length(&self) -> &Option<i32> {
         &self.max_length
     }
+    pub fn create_twilight_choices(&self) -> Option<Vec<CommandOptionChoice>> {
+        if self.choices.is_empty() {
+            return None;
+        }
+        Some(
+            self.choices
+                .iter()
+                .map(|c| c.create_twilight_choice())
+                .collect(),
+        )
+    }
+    pub fn create_twilight_max_value(&self) -> Option<CommandOptionValue> {
+        if let Some(value) = self.max_value_int {
+            Some(CommandOptionValue::Integer(value.clone()))
+        } else if let Some(value) = self.max_value_number {
+            Some(CommandOptionValue::Number(value.clone()))
+        } else {
+            None
+        }
+    }
+    pub fn create_twilight_min_value(&self) -> Option<CommandOptionValue> {
+        if let Some(value) = self.min_value_int {
+            Some(CommandOptionValue::Integer(value.clone()))
+        } else if let Some(value) = self.min_value_number {
+            Some(CommandOptionValue::Number(value.clone()))
+        } else {
+            None
+        }
+    }
+    pub fn create_twilight_max_length(&self) -> Option<u16> {
+        if let Some(len) = self.max_length {
+            Some(u16::try_from(len.clone()).unwrap())
+        } else {
+            None
+        }
+    }
+    pub fn create_twilight_min_length(&self) -> Option<u16> {
+        if let Some(len) = self.min_length {
+            Some(u16::try_from(len.clone()).unwrap())
+        } else {
+            None
+        }
+    }
     pub fn builder() -> ParameterBuilder {
         ParameterBuilder::new()
     }
@@ -112,9 +158,7 @@ pub struct ParameterBuilder {
     description: String,
     kind: Option<ParameterType>,
     required: bool,
-    choices_string: Vec<ParameterChoice<String>>,
-    choices_int: Vec<ParameterChoice<i64>>,
-    choices_number: Vec<ParameterChoice<f64>>,
+    choices: Vec<ParameterChoice>,
     min_value_int: Option<i64>,
     max_value_int: Option<i64>,
     min_value_number: Option<f64>,
@@ -142,28 +186,12 @@ impl ParameterBuilder {
         self.required = required;
         self
     }
-    pub fn choice_string(&mut self, choice: ParameterChoice<String>) -> &mut Self {
-        self.choices_string.push(choice);
+    pub fn choice(&mut self, choice: ParameterChoice) -> &mut Self {
+        self.choices.push(choice);
         self
     }
-    pub fn choices_string(&mut self, choices: Vec<ParameterChoice<String>>) -> &mut Self {
-        self.choices_string = choices;
-        self
-    }
-    pub fn choices_int(&mut self, choices: Vec<ParameterChoice<i64>>) -> &mut Self {
-        self.choices_int = choices;
-        self
-    }
-    pub fn choice_int(&mut self, choice: ParameterChoice<i64>) -> &mut Self {
-        self.choices_int.push(choice);
-        self
-    }
-    pub fn choices_number(&mut self, choices: Vec<ParameterChoice<f64>>) -> &mut Self {
-        self.choices_number = choices;
-        self
-    }
-    pub fn choice_number(&mut self, choice: ParameterChoice<f64>) -> &mut Self {
-        self.choices_number.push(choice);
+    pub fn choices(&mut self, choices: Vec<ParameterChoice>) -> &mut Self {
+        self.choices = choices;
         self
     }
     pub fn min_value_int(&mut self, min_value_int: Option<i64>) -> &mut Self {
@@ -212,22 +240,14 @@ impl ParameterBuilder {
         if let (Some(min_length), Some(max_length)) = (self.min_length, self.max_length) {
             assert!(min_length <= max_length);
         }
-        assert!(self.choices_string.len() <= 25);
-        assert!(self.choices_int.len() <= 25);
-        assert!(self.choices_number.len() <= 25);
-
-        assert!(self.choices_string.len() == 0 || self.kind == Some(ParameterType::String));
-        assert!(self.choices_int.len() == 0 || self.kind == Some(ParameterType::Int));
-        assert!(self.choices_number.len() == 0 || self.kind == Some(ParameterType::Number));
+        assert!(self.choices.len() <= 25);
 
         Parameter {
             name: self.name.clone(),
             description: self.description.clone(),
             kind: self.kind.clone().unwrap(),
             required: self.required,
-            choices_string: self.choices_string.clone(),
-            choices_int: self.choices_int.clone(),
-            choices_number: self.choices_number.clone(),
+            choices: self.choices.clone(),
             min_value_int: self.min_value_int,
             max_value_int: self.max_value_int,
             min_value_number: self.min_value_number,

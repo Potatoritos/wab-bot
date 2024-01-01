@@ -8,9 +8,6 @@ mod parse;
 use parse::{FunctionParse, StructParse};
 
 #[derive(Debug, FromMeta)]
-struct Test {}
-
-#[derive(Debug, FromMeta)]
 struct CommandMacroArgs {
     name: String,
     description: String,
@@ -23,11 +20,7 @@ struct ParameterMacroArgs {
     name: String,
     description: String,
     #[darling(default, multiple)]
-    choice_string: Vec<ChoiceMacroArgs<String>>,
-    #[darling(default, multiple)]
-    choice_int: Vec<ChoiceMacroArgs<i64>>,
-    #[darling(default, multiple)]
-    choice_number: Vec<ChoiceMacroArgs<f64>>,
+    choice: Vec<ChoiceMacroArgs>,
     min_value_int: Option<i64>,
     max_value_int: Option<i64>,
     min_value_number: Option<f64>,
@@ -37,9 +30,11 @@ struct ParameterMacroArgs {
 }
 
 #[derive(Debug, FromMeta)]
-struct ChoiceMacroArgs<T> {
+struct ChoiceMacroArgs {
     name: String,
-    value: T,
+    value_string: Option<String>,
+    value_int: Option<i64>,
+    value_number: Option<f64>
 }
 
 #[proc_macro_attribute]
@@ -89,12 +84,12 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                         quote! {wab::ParameterType::String},
                     ),
                     "i64" => (
-                        quote! {wab::Argument::Int},
-                        quote! {wab::ParameterType::Int},
+                        quote! {wab::Argument::Integer},
+                        quote! {wab::ParameterType::Integer},
                     ),
                     "Option < i64 >" => (
-                        quote! {wab::Argument::OptionalInt},
-                        quote! {wab::ParameterType::Int},
+                        quote! {wab::Argument::OptionalInteger},
+                        quote! {wab::ParameterType::Integer},
                     ),
                     "f64" => (
                         quote! {wab::Argument::Number},
@@ -105,12 +100,12 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                         quote! {wab::ParameterType::Number},
                     ),
                     "bool" => (
-                        quote! {wab::Argument::Bool},
-                        quote! {wab::ParameterType::Bool},
+                        quote! {wab::Argument::Boolean},
+                        quote! {wab::ParameterType::Boolean},
                     ),
                     "Option < bool >" => (
-                        quote! {wab::Argument::OptionalBool},
-                        quote! {wab::ParameterType::Bool},
+                        quote! {wab::Argument::OptionalBoolean},
+                        quote! {wab::ParameterType::Boolean},
                     ),
                     _ => panic!("invalid parameter type"),
                 }
@@ -121,9 +116,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         let ParameterMacroArgs {
             name: arg_name,
             description,
-            choice_string,
-            choice_int,
-            choice_number,
+            choice,
             min_value_int,
             max_value_int,
             min_value_number,
@@ -131,29 +124,20 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             min_length,
             max_length,
         } = parameter_macro_args;
-
-        let choices_string: Vec<TokenStream2> = choice_string
+        
+        let choices: Vec<TokenStream2> = choice
             .into_iter()
             .map(|x| {
                 let name = x.name;
-                let value = x.value;
-                quote! {wab::ParameterChoice::<String>::new(#name, #value)}
-            })
-            .collect();
-        let choices_int: Vec<TokenStream2> = choice_int
-            .into_iter()
-            .map(|x| {
-                let name = x.name;
-                let value = x.value;
-                quote! {wab::ParameterChoice::<i64>::new(#name, #value)}
-            })
-            .collect();
-        let choices_number: Vec<TokenStream2> = choice_number
-            .into_iter()
-            .map(|x| {
-                let name = x.name;
-                let value = x.value;
-                quote! {wab::ParameterChoice::<i64>::new(#name, #value)}
+                if let Some(value) = x.value_int {
+                    quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::Integer(#value))}
+                } else if let Some(value) = x.value_number {
+                    quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::Number(#value))}
+                } else if let Some(value) = x.value_string {
+                    quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::String(String::from(#value)))}
+                } else {
+                    panic!("Expected value in parameter choice");
+                }
             })
             .collect();
 
@@ -170,9 +154,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                 .description(#description)
                 .kind(#parameter_type)
                 .required(#required)
-                #(.choice_string(#choices_string))*
-                #(.choice_int(#choices_int))*
-                #(.choice_number(#choices_number))*
+                #(.choice(#choices))*
                 .min_value_int(#min_value_int)
                 .max_value_int(#max_value_int)
                 .min_value_number(#min_value_number)

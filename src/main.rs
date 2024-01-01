@@ -7,37 +7,40 @@ use typemap::{Key, TypeMap};
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing_subscriber::fmt::init();
 
-    let state = Arc::new(RwLock::new(TypeMap::new()));
-    if let Some(init) = CMD_GROUP.init {
-        init(state.clone()).await;
-    }
+    // let state = Arc::new(RwLock::new(TypeMap::new()));
+    // if let Some(init) = CMD_GROUP.init {
+        // init(state.clone()).await;
+    // }
 
-    let ctx = wab::Context {
-        state: state.clone(),
-    };
-    let mut args = HashMap::new();
-    args.insert(String::from("arg1"), wab::Argument::Int(2));
-    args.insert(
-        String::from("arg2"),
-        wab::Argument::OptionalString(Some(String::from("va"))),
-    );
-    args.insert(String::from("arg3"), wab::Argument::Number(2.5));
+    // let ctx = wab::Context {
+        // state: state.clone(),
+    // };
+    // let mut args = HashMap::new();
+    // args.insert(String::from("arg1"), wab::Argument::Integer(2));
+    // args.insert(
+        // String::from("arg2"),
+        // wab::Argument::OptionalString(Some(String::from("va"))),
+    // );
+    // args.insert(String::from("arg3"), wab::Argument::Number(2.5));
 
-    let commands = (CMD_GROUP.build_commands)();
-    let _ = commands[0].run(ctx, args).await;
+    // let commands = (CMD_GROUP.build_commands)();
+    // let _ = commands[0].run(ctx, args).await;
     
-    let ctx = wab::Context {
-        state: state.clone()
-    };
-    let mut args = HashMap::new();
-    args.insert(String::from("arg1"), wab::Argument::Int(2));
-    args.insert(
-        String::from("arg2"),
-        wab::Argument::OptionalString(Some(String::from("va"))),
-    );
-    args.insert(String::from("arg3"), wab::Argument::Number(2.5));
+    // let ctx = wab::Context {
+        // state: state.clone()
+    // };
+    // let mut args = HashMap::new();
+    // args.insert(String::from("arg1"), wab::Argument::Integer(2));
+    // args.insert(
+        // String::from("arg2"),
+        // wab::Argument::OptionalString(Some(String::from("va"))),
+    // );
+    // args.insert(String::from("arg3"), wab::Argument::Number(2.5));
 
-    let _ = commands[0].run(ctx, args).await;
+    // let _ = commands[0].run(ctx, args).await;
+    
+    let mut bot = wab::Bot::builder().group(&CMD_GROUP).build();
+    bot.register_interactions(String::from("a")).await;
 
     Ok(())
 }
@@ -64,19 +67,19 @@ async fn init(state: Arc<RwLock<TypeMap>>) {
 pub struct CmdGroup;
 
 #[wab::command(
-    name = "name here",
+    name = "name name2 name3",
     description = "description here",
     parameter(
         name = "arg1",
         description = "boing",
         min_value_int = 1,
-        choice_int(name = "choice int", value = 2)
+        choice(name = "choice int", value_int = 2)
     ),
     parameter(
         name = "arg2",
         description = "description2",
-        choice_string(name = "asdasdd", value = "value"),
-        choice_string(name = "asda", value = "asdasfsfd"),
+        choice(name = "asdasdd", value_string = "value"),
+        choice(name = "asda", value_string = "asdasfsfd"),
         min_length = 2,
         max_length = 40
     ),
@@ -94,7 +97,6 @@ pub async fn cmd(
     mut arg3: f64,
 ) -> wab::CommandResult {
     println!("boing1");
-    boing().await;
     let lock = ctx.get_state::<CmdState>().await;
     
     let count = {
@@ -105,10 +107,6 @@ pub async fn cmd(
     println!("count: {}", count);
 
     Ok(())
-}
-
-pub async fn boing() {
-    println!("asdad");
 }
 
 #[wab::command(name = "cmd2 name", description = "cmd2 desc")]
