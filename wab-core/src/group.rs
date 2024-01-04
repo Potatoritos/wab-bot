@@ -1,9 +1,7 @@
-use tokio::sync::RwLock;
-use std::sync::Arc;
-use typemap::TypeMap;
-use super::command::{Command, BoxedFuture};
+use super::command::Command;
+use typemap::ShareMap;
 
-pub type GroupInitFunction = fn(Arc<RwLock<TypeMap>>) -> BoxedFuture<()>;
+pub type GroupInitFunction = fn(&mut ShareMap);
 
 pub struct Group {
     pub build_commands: fn() -> Vec<Command>,

@@ -1,79 +1,82 @@
-use crate::{Command, CommandHandler, Group};
-
+use crate::{Argument, Command, CommandHandler, Context, Group};
 use std::collections::HashMap;
+use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{Event, Intents, Shard, ShardId};
-use twilight_http::Client;
-use twilight_model::application::command::{
-    Command as ApplicationCommand, CommandOption, CommandOptionChoice, CommandOptionChoiceValue,
-    CommandOptionType, CommandOptionValue, CommandType,
-};
+use twilight_http::{client::InteractionClient, Client};
 use twilight_model::application::interaction::{
-    application_command::{CommandData, CommandOptionValue as InteractionCommandOptionValue},
+    application_command::{CommandData, CommandOptionValue},
     Interaction, InteractionData, InteractionType,
 };
 use twilight_model::id::marker;
 use twilight_model::id::Id;
-use typemap::TypeMap;
+use typemap::{ShareMap, TypeMap};
 
-pub struct Bot<'a> {
-    groups: Vec<&'a Group>,
-    command_handler: CommandHandler,
-    state: Arc<RwLock<TypeMap>>,
-    registered_interactions: bool,
-    initialized_commands: bool,
+pub struct EventDispatchContext {
+    state: Arc<RwLock<ShareMap>>,
+    client: Arc<Client>,
+    cache: Arc<InMemoryCache>,
+    commands: Arc<CommandHandler>,
+    event: Event,
 }
 
-impl<'a> Bot<'a> {
-    fn new(groups: Vec<&'a Group>) -> Self {
+pub struct Bot {
+    state: Arc<RwLock<ShareMap>>,
+    commands: Arc<CommandHandler>,
+}
+impl Bot {
+    fn new<'a>(groups: &[&'a Group]) -> Self {
+        let mut state: ShareMap = TypeMap::custom();
         let mut commands = Vec::new();
 
-        for group in &groups {
+        for group in groups.iter() {
             for command in (group.build_commands)() {
                 commands.push(command);
             }
+            if let Some(init) = group.init {
+                init(&mut state);
+            }
         }
-
-        let state = Arc::new(RwLock::new(TypeMap::new()));
 
         Bot {
-            groups,
-            command_handler: CommandHandler::new(commands),
-            state,
-            registered_interactions: false,
-            initialized_commands: false,
+            state: Arc::new(RwLock::new(state)),
+            commands: Arc::new(CommandHandler::new(commands)),
         }
     }
-    pub async fn register_interactions(&mut self, app_id: String) {
-        self.registered_interactions = true;
-        
-        let application_commands = self.command_handler.create_application_commands();
-        
-        println!("{:#?}", application_commands);
-    }
-    pub async fn run(&mut self, token: String) {
-        self.init_groups().await;
+    async fn register_interactions(&self, interaction_client: &InteractionClient<'_>) {
+        let application_commands = self.commands.create_application_commands();
 
-        let intents = Intents::GUILD_MESSAGES | Intents::DIRECT_MESSAGES | Intents::MESSAGE_CONTENT;
+        println!("{:#?}", application_commands);
+
+        let result = interaction_client
+            .set_guild_commands(Id::new(495327409487478785), &application_commands)
+            .await;
+
+        println!("result: {:#?}", result);
+    }
+    pub async fn run(
+        &self,
+        token: String,
+        app_id: String,
+        intents: Intents,
+        resource_types: ResourceType,
+    ) {
+        let app_id = Id::new(app_id.parse::<u64>().unwrap());
+
         let mut shard = Shard::new(ShardId::ONE, token.clone(), intents);
+
         let client = Arc::new(Client::new(token));
-        let resource_types = ResourceType::CHANNEL
-            | ResourceType::EMOJI
-            | ResourceType::GUILD
-            | ResourceType::MEMBER
-            | ResourceType::MESSAGE
-            | ResourceType::PRESENCE
-            | ResourceType::REACTION
-            | ResourceType::ROLE
-            | ResourceType::USER_CURRENT
-            | ResourceType::USER
-            | ResourceType::VOICE_STATE
-            | ResourceType::STICKER;
-        let cache = InMemoryCache::builder()
-            .resource_types(resource_types)
-            .build();
+        let interaction_client = client.interaction(app_id);
+
+        self.register_interactions(&interaction_client).await;
+
+        let cache = Arc::new(
+            InMemoryCache::builder()
+                .resource_types(resource_types)
+                .build(),
+        );
 
         loop {
             let event = match shard.next_event().await {
@@ -90,61 +93,100 @@ impl<'a> Bot<'a> {
             };
             cache.update(&event);
 
-            self.handle_event(event, &client).await;
+            let ctx = EventDispatchContext {
+                state: self.state.clone(),
+                client: client.clone(),
+                cache: cache.clone(),
+                commands: self.commands.clone(),
+                event: event,
+            };
+
+            tokio::spawn(handle_event(ctx));
+
+            // self.handle_event(event, &client).await;
         }
     }
-    async fn handle_event(&self, event: Event, client: &Client) {
-        match event {
-            Event::InteractionCreate(ic) => {
-                self.handle_interaction(client, &ic.0).await;
-            }
-            _ => {}
-        }
-    }
-    async fn handle_interaction(&self, client: &Client, interaction: &Interaction) {
-        match interaction.kind {
-            InteractionType::ApplicationCommand => {
-                if let Some(InteractionData::ApplicationCommand(data)) = &interaction.data {
-                    self.handle_application_command(&client, &interaction, &data)
-                        .await;
-                }
-            }
-            _ => {}
-        }
-    }
-    async fn handle_application_command(
-        &self,
-        client: &Client,
-        interaction: &Interaction,
-        data: &Box<CommandData>,
-    ) {
-        let name = String::from(&data.name);
-        let options = &data.options;
-        // while options.len() == 1 {
-        // if let InteractionCommandOptionValue::SubCommand(option) = &options[0].value {}
-        // }
-    }
-    async fn init_groups(&mut self) {
-        for group in &self.groups {
-            if let Some(init_fn) = group.init {
-                init_fn(self.state.clone()).await;
-            }
-        }
-        self.initialized_commands = true;
-    }
-    pub fn builder() -> BotBuilder<'a> {
+    pub fn builder<'a>() -> BotBuilder<'a> {
         BotBuilder::new()
     }
 }
 
-#[derive(Default)]
+async fn handle_event(ctx: EventDispatchContext) -> Result<(), Box<dyn Error + Send + Sync>> {
+    match &ctx.event {
+        Event::InteractionCreate(ic) => {
+            handle_interaction(&ctx, &ic.0).await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn handle_interaction(
+    ctx: &EventDispatchContext,
+    interaction: &Interaction,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    match interaction.kind {
+        InteractionType::ApplicationCommand => {
+            if let Some(InteractionData::ApplicationCommand(data)) = &interaction.data {
+                handle_application_command(ctx, interaction, data).await?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn handle_application_command(
+    ctx: &EventDispatchContext,
+    interaction: &Interaction,
+    data: &Box<CommandData>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut name = String::from(&data.name);
+    let mut options = &data.options;
+    tracing::debug!("{:#?}", data);
+    while options.len() == 1 {
+        match &options[0].value {
+            CommandOptionValue::SubCommand(o) | CommandOptionValue::SubCommandGroup(o) => {
+                name.push(' ');
+                name.push_str(&options[0].name);
+                options = &o;
+            }
+            _ => break,
+        }
+    }
+
+    let mut args = HashMap::new();
+    for o in options {
+        let arg = match &o.value {
+            CommandOptionValue::Boolean(x) => Argument::Boolean(*x),
+            CommandOptionValue::Integer(x) => Argument::Integer(*x),
+            CommandOptionValue::Number(x) => Argument::Float(*x),
+            CommandOptionValue::String(x) => Argument::String(x.to_string()),
+            _ => panic!(),
+        };
+        args.insert(o.name.clone(), arg);
+    }
+
+    if let Some(cmd) = ctx.commands.get(&name) {
+        let cmd_ctx = Context {
+            state: ctx.state.clone(),
+            client: ctx.client.clone(),
+            cache: ctx.cache.clone(),
+        };
+        let result = cmd.run(cmd_ctx, args).await;
+    } else {
+        tracing::warn!("Could not find command: '{}'", name)
+    }
+    Ok(())
+}
+
 pub struct BotBuilder<'a> {
     groups: Vec<&'a Group>,
 }
 
 impl<'a> BotBuilder<'a> {
     fn new() -> Self {
-        Self::default()
+        Self { groups: Vec::new() }
     }
     pub fn group(mut self, group: &'a Group) -> Self {
         self.groups.push(group);
@@ -154,7 +196,7 @@ impl<'a> BotBuilder<'a> {
         self.groups = groups;
         self
     }
-    pub fn build(self) -> Bot<'a> {
-        Bot::new(self.groups)
+    pub fn build(self) -> Bot {
+        Bot::new(&self.groups)
     }
 }

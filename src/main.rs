@@ -1,46 +1,32 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{RwLock, Mutex};
-use typemap::{Key, TypeMap};
+use std::{env, error::Error, sync::Arc};
+use tokio::sync::RwLock;
+use twilight_cache_inmemory::ResourceType;
+use twilight_gateway::Intents;
+use typemap::{Key, ShareMap};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    tracing_subscriber::fmt::init();
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
 
-    // let state = Arc::new(RwLock::new(TypeMap::new()));
-    // if let Some(init) = CMD_GROUP.init {
-        // init(state.clone()).await;
-    // }
+    let intents = Intents::GUILD_MESSAGES | Intents::DIRECT_MESSAGES | Intents::MESSAGE_CONTENT;
+    let resource_types = ResourceType::CHANNEL
+        | ResourceType::EMOJI
+        | ResourceType::GUILD
+        | ResourceType::MEMBER
+        | ResourceType::MESSAGE
+        | ResourceType::PRESENCE
+        | ResourceType::REACTION
+        | ResourceType::ROLE
+        | ResourceType::USER_CURRENT
+        | ResourceType::USER
+        | ResourceType::VOICE_STATE
+        | ResourceType::STICKER;
 
-    // let ctx = wab::Context {
-        // state: state.clone(),
-    // };
-    // let mut args = HashMap::new();
-    // args.insert(String::from("arg1"), wab::Argument::Integer(2));
-    // args.insert(
-        // String::from("arg2"),
-        // wab::Argument::OptionalString(Some(String::from("va"))),
-    // );
-    // args.insert(String::from("arg3"), wab::Argument::Number(2.5));
-
-    // let commands = (CMD_GROUP.build_commands)();
-    // let _ = commands[0].run(ctx, args).await;
+    let bot = wab::Bot::builder().group(&CMD_GROUP).build();
     
-    // let ctx = wab::Context {
-        // state: state.clone()
-    // };
-    // let mut args = HashMap::new();
-    // args.insert(String::from("arg1"), wab::Argument::Integer(2));
-    // args.insert(
-        // String::from("arg2"),
-        // wab::Argument::OptionalString(Some(String::from("va"))),
-    // );
-    // args.insert(String::from("arg3"), wab::Argument::Number(2.5));
-
-    // let _ = commands[0].run(ctx, args).await;
-    
-    let mut bot = wab::Bot::builder().group(&CMD_GROUP).build();
-    bot.register_interactions(String::from("a")).await;
+    bot.run(env::var("WAB_TOKEN")?, env::var("WAB_APP_ID")?, intents, resource_types).await;
 
     Ok(())
 }
@@ -53,10 +39,8 @@ impl Key for CmdState {
     type Value = Arc<RwLock<CmdState>>;
 }
 
-#[wab::box_async]
-async fn init(state: Arc<RwLock<TypeMap>>) {
-    let mut write = state.write().await;
-    write.insert::<CmdState>(Arc::new(RwLock::new(CmdState {x: 5})));   
+fn init(state: &mut ShareMap) {
+    state.insert::<CmdState>(Arc::new(RwLock::new(CmdState { x: 5 })));
 }
 
 #[wab::group(
@@ -93,12 +77,12 @@ pub struct CmdGroup;
 pub async fn cmd(
     ctx: wab::Context,
     mut arg1: i64,
-    mut arg2: Option<String>,
-    mut arg3: f64,
+    mut arg2: String,
+    mut arg3: Option<f64>,
 ) -> wab::CommandResult {
     println!("boing1");
-    let lock = ctx.get_state::<CmdState>().await;
-    
+    let lock = ctx.state::<CmdState>().await;
+
     let count = {
         let mut counter = lock.write().await;
         counter.x = counter.x + 1;

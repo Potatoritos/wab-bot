@@ -1,19 +1,21 @@
-use twilight_model::application::command::{CommandOptionChoice, CommandOptionChoiceValue, CommandOptionType, CommandOptionValue};
+use twilight_model::application::command::{
+    CommandOptionChoice, CommandOptionChoiceValue, CommandOptionType, CommandOptionValue,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParameterType {
     String,
     Integer,
     Boolean,
-    Number,
+    Float,
 }
 impl ParameterType {
     pub fn create_twilight_option_type(&self) -> CommandOptionType {
         match self {
             Self::String => CommandOptionType::String,
             Self::Integer => CommandOptionType::Integer,
-            Self::Number => CommandOptionType::Number,
-            Self::Boolean => CommandOptionType::Boolean
+            Self::Float => CommandOptionType::Number,
+            Self::Boolean => CommandOptionType::Boolean,
         }
     }
 }
@@ -21,7 +23,7 @@ impl ParameterType {
 pub enum ParameterChoiceType {
     String(String),
     Integer(i64),
-    Number(f64),
+    Float(f64),
 }
 #[derive(Clone, Debug)]
 pub struct ParameterChoice {
@@ -38,7 +40,7 @@ impl ParameterChoice {
     pub fn create_twilight_choice(&self) -> CommandOptionChoice {
         let value = match &self.value {
             ParameterChoiceType::Integer(v) => CommandOptionChoiceValue::Integer(v.clone()),
-            ParameterChoiceType::Number(v) => CommandOptionChoiceValue::Number(v.clone()),
+            ParameterChoiceType::Float(v) => CommandOptionChoiceValue::Number(v.clone()),
             ParameterChoiceType::String(v) => CommandOptionChoiceValue::String(v.clone()),
         };
         CommandOptionChoice {

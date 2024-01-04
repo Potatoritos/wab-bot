@@ -1,16 +1,9 @@
 use crate::Command;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 use twilight_model::application::command::{
-    Command as ApplicationCommand, CommandOption, CommandOptionChoice, CommandOptionChoiceValue,
-    CommandOptionType, CommandOptionValue, CommandType,
+    Command as ApplicationCommand, CommandOption, CommandOptionType, CommandType,
 };
-use twilight_model::application::interaction::{
-    application_command::{CommandData, CommandOptionValue as InteractionCommandOptionValue},
-    Interaction, InteractionData, InteractionType,
-};
-use twilight_model::id::marker;
 use twilight_model::id::Id;
-use twilight_util::builder::command::CommandBuilder;
 
 pub struct CommandHandler {
     commands: HashMap<String, Command>,
@@ -48,11 +41,14 @@ impl CommandHandler {
                 }
             }
         }
-        
+
         Self {
             commands: command_map,
             command_adjacency,
         }
+    }
+    pub fn get(&self, name: &str) -> Option<&Command> {
+        self.commands.get(name)
     }
     pub fn create_application_commands(&self) -> Vec<ApplicationCommand> {
         let mut vec = Vec::new();
@@ -65,7 +61,7 @@ impl CommandHandler {
                 application_id: None,
                 default_member_permissions: None,
                 dm_permission: None,
-                description: String::from(""),
+                description: String::from("(command group)"),
                 description_localizations: None,
                 guild_id: None,
                 id: None,
@@ -88,7 +84,7 @@ impl CommandHandler {
                     autocomplete: None,
                     channel_types: None,
                     choices: None,
-                    description: String::from(""),
+                    description: String::from("(command group)"),
                     description_localizations: None,
                     kind: CommandOptionType::SubCommandGroup,
                     max_length: None,

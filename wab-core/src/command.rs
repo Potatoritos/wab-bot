@@ -8,7 +8,7 @@ use super::parameter::Parameter;
 
 pub type CommandResult = Result<(), ()>;
 
-pub type BoxedFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+pub type BoxedFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
 pub type CommandFunction = fn(Context, HashMap<String, Argument>) -> BoxedFuture<CommandResult>;
 
 #[derive(Debug)]

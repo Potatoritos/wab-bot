@@ -34,7 +34,7 @@ struct ChoiceMacroArgs {
     name: String,
     value_string: Option<String>,
     value_int: Option<i64>,
-    value_number: Option<f64>
+    value_number: Option<f64>,
 }
 
 #[proc_macro_attribute]
@@ -75,36 +75,20 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                 let ident_str = ty.to_token_stream().to_string();
                 required = !ident_str.starts_with("Option");
                 match ident_str.as_str() {
-                    "String" => (
+                    "String" | "Option < String >" => (
                         quote! {wab::Argument::String},
                         quote! {wab::ParameterType::String},
                     ),
-                    "Option < String >" => (
-                        quote! {wab::Argument::OptionalString},
-                        quote! {wab::ParameterType::String},
-                    ),
-                    "i64" => (
+                    "i64" | "Option < i64 >" => (
                         quote! {wab::Argument::Integer},
                         quote! {wab::ParameterType::Integer},
                     ),
-                    "Option < i64 >" => (
-                        quote! {wab::Argument::OptionalInteger},
-                        quote! {wab::ParameterType::Integer},
+                    "f64" | "Option < f64 >" => (
+                        quote! {wab::Argument::Float},
+                        quote! {wab::ParameterType::Float},
                     ),
-                    "f64" => (
-                        quote! {wab::Argument::Number},
-                        quote! {wab::ParameterType::Number},
-                    ),
-                    "Option < f64 >" => (
-                        quote! {wab::Argument::OptionalNumber},
-                        quote! {wab::ParameterType::Number},
-                    ),
-                    "bool" => (
+                    "bool" | "Option < bool >" => (
                         quote! {wab::Argument::Boolean},
-                        quote! {wab::ParameterType::Boolean},
-                    ),
-                    "Option < bool >" => (
-                        quote! {wab::Argument::OptionalBoolean},
                         quote! {wab::ParameterType::Boolean},
                     ),
                     _ => panic!("invalid parameter type"),
@@ -124,7 +108,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
             min_length,
             max_length,
         } = parameter_macro_args;
-        
+
         let choices: Vec<TokenStream2> = choice
             .into_iter()
             .map(|x| {
@@ -132,7 +116,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                 if let Some(value) = x.value_int {
                     quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::Integer(#value))}
                 } else if let Some(value) = x.value_number {
-                    quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::Number(#value))}
+                    quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::Float(#value))}
                 } else if let Some(value) = x.value_string {
                     quote! {wab::ParameterChoice::new(#name, wab::ParameterChoiceType::String(String::from(#value)))}
                 } else {
@@ -166,12 +150,23 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
         fn_parameter_names.push(&fn_parameter.name);
 
         let var_name = &fn_parameter.name;
-        arg_conversions.push(quote! {
-            let mut #var_name = match args.remove(#arg_name).unwrap() {
-                #arg_type(x) => x,
-                _ => panic!("argument type mismatched")
-            };
-        });
+        let arg_conversion = if required {
+            quote! {
+                let mut #var_name = match args.remove(#arg_name) {
+                    Some(#arg_type(x)) => x,
+                    None | _ => panic!("argument type mismatched")
+                };
+            }
+        } else {
+            quote! {
+                let mut #var_name = match args.remove(#arg_name) {
+                    Some(#arg_type(x)) => Some(x),
+                    None => None,
+                    _ => panic!("argument type mismatched")
+                };
+            }
+        };
+        arg_conversions.push(arg_conversion);
     }
 
     let builder = Ident::new(&format!("wab_builder_{}", &fn_name), fn_name.span());
@@ -217,7 +212,8 @@ pub fn box_async(_attr: TokenStream, input: TokenStream) -> TokenStream {
                 #(#body)*
             })
         }
-    }).into()
+    })
+    .into()
 }
 
 fn quote_option<T: ToTokens>(option: &Option<T>) -> TokenStream2 {
@@ -263,7 +259,7 @@ impl FromMeta for IdentList {
 struct GroupMacroArgs {
     category: String,
     commands: IdentList,
-    init: Option<Ident>
+    init: Option<Ident>,
 }
 
 #[proc_macro_attribute]
@@ -291,7 +287,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         &format!("wab_group_commands_{}", &name_string),
         struct_name.span(),
     );
-    
+
     let command_builders: Vec<Ident> = attr_args
         .commands
         .idents
@@ -299,13 +295,8 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         .map(|x| Ident::new(&format!("wab_builder_{}", x.to_string()), x.span()))
         .collect();
     let category = attr_args.category;
-    
+
     let init = quote_option(&attr_args.init);
-    // if let Some(init_fn_name) = attr_args.init {
-        // init = quote! {#init_fn_name}
-    // } else {
-        // init = quote! {None}
-    // }
 
     (quote! {
         fn #build_commands() -> Vec<wab::Command> {
