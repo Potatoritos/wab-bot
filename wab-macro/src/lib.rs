@@ -341,7 +341,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn event(attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn event(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let FunctionParse {
         attributes: _,
         visibility,
@@ -355,16 +355,17 @@ pub fn event(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let parameter = &fn_parameters[0];
     let name = &parameter.name;
+    let kind = &parameter.kind;
 
     let variant = Ident::new(&snake_to_camel_case(&fn_name.to_string()), name.span());
 
     (quote! {
-        #visibility fn #fn_name(#name: twilight_model::gateway::event::Event) -> wab::BoxedFuture<#output> {
-            let #name = match #name {
-                twilight_model::gateway::event::Event::#variant(x) => x,
-                _ => panic!(),
-            };
+        #visibility fn #fn_name(#name: std::sync::Arc<twilight_model::gateway::event::Event>) -> wab::BoxedFuture<#output> {
             Box::pin(async move {
+                let #name: #kind = match #name.as_ref() {
+                    twilight_model::gateway::event::Event::#variant(x) => x,
+                    _ => panic!(),
+                };
                 #(#body)*
             })
         }

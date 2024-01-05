@@ -45,7 +45,7 @@ fn init(state: &mut ShareMap) {
 }
 
 #[wab::event]
-async fn message_create(event: Box<MessageCreate>) {
+async fn message_create(event: &Box<MessageCreate>) {
     tracing::info!("{}", event.content);
 }
 

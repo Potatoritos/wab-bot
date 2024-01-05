@@ -12,6 +12,6 @@ pub use bot::Bot;
 pub use command::{BoxedFuture, Command, CommandBuilder, CommandFunction, CommandResult};
 pub use command_handler::CommandHandler;
 pub use context::Context;
-pub use event::Event;
+pub use event::{Event, EventFunction};
 pub use group::Group;
 pub use parameter::{Parameter, ParameterChoice, ParameterChoiceType, ParameterType};

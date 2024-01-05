@@ -1,16 +1,15 @@
-use crate::{Argument, Command, CommandHandler, Context, Group};
+use crate::{Argument, CommandHandler, Context, EventFunction, Group};
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{Event, Intents, Shard, ShardId};
+use twilight_gateway::{Event as EventData, EventType, Intents, Shard, ShardId};
 use twilight_http::{client::InteractionClient, Client};
 use twilight_model::application::interaction::{
     application_command::{CommandData, CommandOptionValue},
     Interaction, InteractionData, InteractionType,
 };
-use twilight_model::id::marker;
 use twilight_model::id::Id;
 use typemap::{ShareMap, TypeMap};
 
@@ -19,21 +18,30 @@ pub struct EventDispatchContext {
     client: Arc<Client>,
     cache: Arc<InMemoryCache>,
     commands: Arc<CommandHandler>,
-    event: Event,
+    events: Arc<HashMap<EventType, Vec<EventFunction>>>,
+    event: Arc<EventData>,
 }
 
 pub struct Bot {
     state: Arc<RwLock<ShareMap>>,
     commands: Arc<CommandHandler>,
+    events: Arc<HashMap<EventType, Vec<EventFunction>>>,
 }
 impl Bot {
     fn new<'a>(groups: &[&'a Group]) -> Self {
         let mut state: ShareMap = TypeMap::custom();
         let mut commands = Vec::new();
+        let mut events: HashMap<EventType, Vec<EventFunction>> = HashMap::new();
 
         for group in groups.iter() {
             for command in (group.build_commands)() {
                 commands.push(command);
+            }
+            for event in (group.build_events)() {
+                events
+                    .entry(event.kind)
+                    .or_insert(Vec::new())
+                    .push(event.function);
             }
             if let Some(init) = group.init {
                 init(&mut state);
@@ -43,6 +51,7 @@ impl Bot {
         Bot {
             state: Arc::new(RwLock::new(state)),
             commands: Arc::new(CommandHandler::new(commands)),
+            events: Arc::new(events),
         }
     }
     async fn register_interactions(&self, interaction_client: &InteractionClient<'_>) {
@@ -98,12 +107,11 @@ impl Bot {
                 client: client.clone(),
                 cache: cache.clone(),
                 commands: self.commands.clone(),
-                event: event,
+                events: self.events.clone(),
+                event: Arc::new(event),
             };
 
             tokio::spawn(handle_event(ctx));
-
-            // self.handle_event(event, &client).await;
         }
     }
     pub fn builder<'a>() -> BotBuilder<'a> {
@@ -112,12 +120,16 @@ impl Bot {
 }
 
 async fn handle_event(ctx: EventDispatchContext) -> Result<(), Box<dyn Error + Send + Sync>> {
-    match &ctx.event {
-        Event::InteractionCreate(ic) => {
+    match &ctx.event.as_ref() {
+        EventData::InteractionCreate(ic) => {
             handle_interaction(&ctx, &ic.0).await?;
         }
         _ => {
-            // ctx.event.kind();
+            if let Some(event_fns) = ctx.events.get(&ctx.event.kind()) {
+                for event_fn in event_fns {
+                    tokio::spawn(event_fn(ctx.event.clone()));
+                }
+            }
         }
     }
     Ok(())
