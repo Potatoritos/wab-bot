@@ -1449,6 +1449,7 @@ dependencies = [
  "tracing-subscriber",
  "twilight-cache-inmemory",
  "twilight-gateway",
+ "twilight-model",
  "typemap",
  "wab",
 ]

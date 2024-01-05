@@ -224,7 +224,7 @@ fn quote_option<T: ToTokens>(option: &Option<T>) -> TokenStream2 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct IdentList {
     idents: Vec<Ident>,
 }
@@ -258,7 +258,10 @@ impl FromMeta for IdentList {
 #[derive(Debug, FromMeta)]
 struct GroupMacroArgs {
     category: String,
+    #[darling(default)]
     commands: IdentList,
+    #[darling(default)]
+    events: IdentList,
     init: Option<Ident>,
 }
 
@@ -298,6 +301,21 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let init = quote_option(&attr_args.init);
 
+    let build_events = Ident::new(
+        &format!("wab_group_events_{}", &name_string),
+        struct_name.span(),
+    );
+    let mut events = Vec::new();
+    for event in attr_args.events.idents {
+        let variant = Ident::new(&snake_to_camel_case(&event.to_string()), event.span());
+        events.push(quote! {
+            wab::Event {
+                kind: twilight_model::gateway::event::EventType::#variant,
+                function: #event,
+            }
+        });
+    }
+
     (quote! {
         fn #build_commands() -> Vec<wab::Command> {
             let mut commands = Vec::new();
@@ -308,14 +326,50 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
             );)*
             commands
         }
+        fn #build_events() -> Vec<wab::Event> {
+            let mut events = Vec::new();
+            #(events.push(#events);)*
+            events
+        }
         #visibility static #name: wab::Group = wab::Group {
             build_commands: #build_commands,
-            init: #init
+            build_events: #build_events,
+            init: #init,
         };
     })
     .into()
 }
 
+#[proc_macro_attribute]
+pub fn event(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let FunctionParse {
+        attributes: _,
+        visibility,
+        name: fn_name,
+        fn_parameters,
+        output,
+        body,
+    } = parse_macro_input!(input as FunctionParse);
+
+    assert!(fn_parameters.len() == 1);
+
+    let parameter = &fn_parameters[0];
+    let name = &parameter.name;
+
+    let variant = Ident::new(&snake_to_camel_case(&fn_name.to_string()), name.span());
+
+    (quote! {
+        #visibility fn #fn_name(#name: twilight_model::gateway::event::Event) -> wab::BoxedFuture<#output> {
+            let #name = match #name {
+                twilight_model::gateway::event::Event::#variant(x) => x,
+                _ => panic!(),
+            };
+            Box::pin(async move {
+                #(#body)*
+            })
+        }
+    }).into()
+}
 fn camel_to_snake_case(s: &str) -> String {
     let mut result = String::new();
     for (i, c) in s.chars().enumerate() {
@@ -323,6 +377,22 @@ fn camel_to_snake_case(s: &str) -> String {
             result.push('_');
         }
         result.push(c.to_ascii_lowercase());
+    }
+    result
+}
+
+fn snake_to_camel_case(s: &str) -> String {
+    let mut result = String::new();
+    let mut capitalize = true;
+    for c in s.chars() {
+        if c == '_' {
+            capitalize = true;
+        } else if capitalize {
+            capitalize = false;
+            result.push(c.to_ascii_uppercase());
+        } else {
+            result.push(c);
+        }
     }
     result
 }

@@ -3,6 +3,7 @@ use tokio::sync::RwLock;
 use twilight_cache_inmemory::ResourceType;
 use twilight_gateway::Intents;
 use typemap::{Key, ShareMap};
+use  twilight_model::gateway::payload::incoming::MessageCreate;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -43,9 +44,15 @@ fn init(state: &mut ShareMap) {
     state.insert::<CmdState>(Arc::new(RwLock::new(CmdState { x: 5 })));
 }
 
+#[wab::event]
+async fn message_create(event: Box<MessageCreate>) {
+    tracing::info!("{}", event.content);
+}
+
 #[wab::group(
     category = "category here",
     commands(cmd, cmd2),
+    events(message_create),
     init = init
 )]
 pub struct CmdGroup;

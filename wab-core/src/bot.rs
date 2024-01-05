@@ -116,7 +116,9 @@ async fn handle_event(ctx: EventDispatchContext) -> Result<(), Box<dyn Error + S
         Event::InteractionCreate(ic) => {
             handle_interaction(&ctx, &ic.0).await?;
         }
-        _ => {}
+        _ => {
+            // ctx.event.kind();
+        }
     }
     Ok(())
 }
