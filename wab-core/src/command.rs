@@ -3,13 +3,13 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 use twilight_model::application::command::CommandOption;
 
 use super::argument::Argument;
-use super::context::Context;
+use super::context::CommandContext;
 use super::parameter::Parameter;
 
 pub type CommandResult = Result<(), ()>;
 
-pub type BoxedFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
-pub type CommandFunction = fn(Context, HashMap<String, Argument>) -> BoxedFuture<CommandResult>;
+pub type BoxedFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
+pub type CommandFunction = fn(CommandContext, HashMap<String, Argument>) -> BoxedFuture<CommandResult>;
 
 #[derive(Debug)]
 pub struct Command {
@@ -19,7 +19,7 @@ pub struct Command {
     function: CommandFunction,
 }
 impl Command {
-    pub fn run(&self, ctx: Context, args: HashMap<String, Argument>) -> BoxedFuture<CommandResult> {
+    pub fn run(&self, ctx: CommandContext, args: HashMap<String, Argument>) -> BoxedFuture<CommandResult> {
         (self.function)(ctx, args)
     }
     pub fn name(&self) -> &str {

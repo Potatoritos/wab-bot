@@ -2,8 +2,8 @@ use std::{env, error::Error, sync::Arc};
 use tokio::sync::RwLock;
 use twilight_cache_inmemory::ResourceType;
 use twilight_gateway::Intents;
+use twilight_model::gateway::payload::incoming::MessageCreate;
 use typemap::{Key, ShareMap};
-use  twilight_model::gateway::payload::incoming::MessageCreate;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -26,8 +26,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         | ResourceType::STICKER;
 
     let bot = wab::Bot::builder().group(&CMD_GROUP).build();
-    
-    bot.run(env::var("WAB_TOKEN")?, env::var("WAB_APP_ID")?, intents, resource_types).await;
+
+    bot.run(
+        env::var("WAB_TOKEN")?,
+        env::var("WAB_APP_ID")?,
+        intents,
+        resource_types,
+    )
+    .await;
 
     Ok(())
 }
@@ -82,13 +88,13 @@ pub struct CmdGroup;
     )
 )]
 pub async fn cmd(
-    ctx: wab::Context,
+    ctx: wab::CommandContext,
     mut arg1: i64,
     mut arg2: String,
     mut arg3: Option<f64>,
 ) -> wab::CommandResult {
     println!("boing1");
-    let lock = ctx.state::<CmdState>().await;
+    let lock = ctx.state.get::<CmdState>().await;
 
     let count = {
         let mut counter = lock.write().await;
@@ -97,10 +103,13 @@ pub async fn cmd(
     };
     println!("count: {}", count);
 
+    ctx.respond(|r| r.content(format!("count: {count}\n{arg1:?}, {arg2:?}, {arg3:?}")))
+        .await;
+
     Ok(())
 }
 
 #[wab::command(name = "cmd2 name", description = "cmd2 desc")]
-pub async fn cmd2(ctx: wab::Context) -> wab::CommandResult {
+pub async fn cmd2(ctx: wab::CommandContext) -> wab::CommandResult {
     Ok(())
 }

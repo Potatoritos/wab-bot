@@ -184,7 +184,7 @@ pub fn command(attr: TokenStream, input: TokenStream) -> TokenStream {
                 #(.parameter(#parameters))*
                 .function(#wrap as wab::CommandFunction)
         }
-        fn #wrap(ctx: wab::Context, mut args: std::collections::HashMap<String, wab::Argument>) -> wab::BoxedFuture<#output> {
+        fn #wrap(ctx: wab::CommandContext, mut args: std::collections::HashMap<String, wab::Argument>) -> wab::BoxedFuture<#output> {
             #(#arg_conversions)*
             #function(ctx, #(#fn_parameter_names),*)
         }

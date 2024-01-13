@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
 tokio = { version = "1.33.0", features = ["full"] }
 typemap = "0.3.3"
 twilight-cache-inmemory = "0.15.4"

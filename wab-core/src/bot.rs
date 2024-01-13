@@ -1,29 +1,27 @@
-use crate::{Argument, CommandHandler, Context, EventFunction, Group};
+use crate::{Argument, Client, CommandContext, CommandHandler, EventFunction, Group, State};
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{Event as EventData, EventType, Intents, Shard, ShardId};
-use twilight_http::{client::InteractionClient, Client};
+use twilight_http::client::InteractionClient;
 use twilight_model::application::interaction::{
     application_command::{CommandData, CommandOptionValue},
     Interaction, InteractionData, InteractionType,
 };
-use twilight_model::id::Id;
+use twilight_model::id::{marker::ApplicationMarker, Id};
 use typemap::{ShareMap, TypeMap};
 
 pub struct EventDispatchContext {
-    state: Arc<RwLock<ShareMap>>,
+    state: Arc<State>,
     client: Arc<Client>,
-    cache: Arc<InMemoryCache>,
     commands: Arc<CommandHandler>,
     events: Arc<HashMap<EventType, Vec<EventFunction>>>,
-    event: Arc<EventData>,
 }
 
 pub struct Bot {
-    state: Arc<RwLock<ShareMap>>,
+    state: Arc<State>,
     commands: Arc<CommandHandler>,
     events: Arc<HashMap<EventType, Vec<EventFunction>>>,
 }
@@ -49,7 +47,9 @@ impl Bot {
         }
 
         Bot {
-            state: Arc::new(RwLock::new(state)),
+            state: Arc::new(State {
+                storage: RwLock::new(state),
+            }),
             commands: Arc::new(CommandHandler::new(commands)),
             events: Arc::new(events),
         }
@@ -72,20 +72,24 @@ impl Bot {
         intents: Intents,
         resource_types: ResourceType,
     ) {
-        let app_id = Id::new(app_id.parse::<u64>().unwrap());
+        let application_id = Id::new(app_id.parse::<u64>().unwrap());
 
         let mut shard = Shard::new(ShardId::ONE, token.clone(), intents);
 
-        let client = Arc::new(Client::new(token));
-        let interaction_client = client.interaction(app_id);
+        let http = twilight_http::Client::new(token);
+        let interaction_client = http.interaction(application_id);
 
         self.register_interactions(&interaction_client).await;
 
-        let cache = Arc::new(
-            InMemoryCache::builder()
-                .resource_types(resource_types)
-                .build(),
-        );
+        let cache = InMemoryCache::builder()
+            .resource_types(resource_types)
+            .build();
+
+        let client = Arc::new(Client {
+            http,
+            cache,
+            application_id,
+        });
 
         loop {
             let event = match shard.next_event().await {
@@ -100,18 +104,16 @@ impl Bot {
                     continue;
                 }
             };
-            cache.update(&event);
+            client.cache.update(&event);
 
             let ctx = EventDispatchContext {
                 state: self.state.clone(),
                 client: client.clone(),
-                cache: cache.clone(),
                 commands: self.commands.clone(),
                 events: self.events.clone(),
-                event: Arc::new(event),
             };
 
-            tokio::spawn(handle_event(ctx));
+            tokio::spawn(handle_event(ctx, event));
         }
     }
     pub fn builder<'a>() -> BotBuilder<'a> {
@@ -119,15 +121,19 @@ impl Bot {
     }
 }
 
-async fn handle_event(ctx: EventDispatchContext) -> Result<(), Box<dyn Error + Send + Sync>> {
-    match &ctx.event.as_ref() {
+async fn handle_event(
+    ctx: EventDispatchContext,
+    event: EventData,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    match event {
         EventData::InteractionCreate(ic) => {
-            handle_interaction(&ctx, &ic.0).await?;
+            handle_interaction(&ctx, ic.0).await?;
         }
         _ => {
-            if let Some(event_fns) = ctx.events.get(&ctx.event.kind()) {
+            if let Some(event_fns) = ctx.events.get(&event.kind()) {
+                let event = Arc::new(event);
                 for event_fn in event_fns {
-                    tokio::spawn(event_fn(ctx.event.clone()));
+                    tokio::spawn(event_fn(event.clone()));
                 }
             }
         }
@@ -137,13 +143,11 @@ async fn handle_event(ctx: EventDispatchContext) -> Result<(), Box<dyn Error + S
 
 async fn handle_interaction(
     ctx: &EventDispatchContext,
-    interaction: &Interaction,
+    interaction: Interaction,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     match interaction.kind {
         InteractionType::ApplicationCommand => {
-            if let Some(InteractionData::ApplicationCommand(data)) = &interaction.data {
-                handle_application_command(ctx, interaction, data).await?;
-            }
+            handle_application_command(ctx, interaction).await?;
         }
         _ => {}
     }
@@ -152,9 +156,14 @@ async fn handle_interaction(
 
 async fn handle_application_command(
     ctx: &EventDispatchContext,
-    interaction: &Interaction,
-    data: &Box<CommandData>,
+    interaction: Interaction,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let data = if let Some(InteractionData::ApplicationCommand(data)) = &interaction.data {
+        data
+    } else {
+        panic!();
+    };
+
     let mut name = String::from(&data.name);
     let mut options = &data.options;
     tracing::debug!("{:#?}", data);
@@ -171,21 +180,14 @@ async fn handle_application_command(
 
     let mut args = HashMap::new();
     for o in options {
-        let arg = match &o.value {
-            CommandOptionValue::Boolean(x) => Argument::Boolean(*x),
-            CommandOptionValue::Integer(x) => Argument::Integer(*x),
-            CommandOptionValue::Number(x) => Argument::Float(*x),
-            CommandOptionValue::String(x) => Argument::String(x.to_string()),
-            _ => panic!(),
-        };
-        args.insert(o.name.clone(), arg);
+        args.insert(o.name.clone(), Argument::try_from(&o.value).unwrap());
     }
 
     if let Some(cmd) = ctx.commands.get(&name) {
-        let cmd_ctx = Context {
+        let cmd_ctx = CommandContext {
             state: ctx.state.clone(),
             client: ctx.client.clone(),
-            cache: ctx.cache.clone(),
+            interaction,
         };
         let result = cmd.run(cmd_ctx, args).await;
     } else {
