@@ -1,14 +1,14 @@
 use tokio::sync::RwLock;
-use typemap::{Key, ShareMap};
+use typemap_rev::{TypeMapKey, TypeMap};
 
 pub struct State {
-    pub storage: RwLock<ShareMap>
+    pub storage: RwLock<TypeMap>
 }
 impl State {
-    pub async fn get<T>(&self) -> <T as typemap::Key>::Value
+    pub async fn get<T>(&self) -> <T as TypeMapKey>::Value
     where
-        T: Key,
-        <T as Key>::Value: Clone + Send + Sync,
+        T: TypeMapKey,
+        <T as TypeMapKey>::Value: Clone,
     {
         let read = self.storage.read().await;
         read.get::<T>().expect("a").clone()

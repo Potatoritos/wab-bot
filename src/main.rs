@@ -3,7 +3,8 @@ use tokio::sync::RwLock;
 use twilight_cache_inmemory::ResourceType;
 use twilight_gateway::Intents;
 use twilight_model::gateway::payload::incoming::MessageCreate;
-use typemap::{Key, ShareMap};
+use typemap_rev::{TypeMapKey, TypeMap};
+use twilight_util::builder::InteractionResponseDataBuilder as ResponseBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -42,11 +43,11 @@ struct CmdState {
     x: i32,
 }
 
-impl Key for CmdState {
+impl TypeMapKey for CmdState {
     type Value = Arc<RwLock<CmdState>>;
 }
 
-fn init(state: &mut ShareMap) {
+fn init(state: &mut TypeMap) {
     state.insert::<CmdState>(Arc::new(RwLock::new(CmdState { x: 5 })));
 }
 
@@ -103,7 +104,7 @@ pub async fn cmd(
     };
     println!("count: {}", count);
 
-    ctx.respond(|r| r.content(format!("count: {count}\n{arg1:?}, {arg2:?}, {arg3:?}")))
+    ctx.respond(ResponseBuilder::new().content(format!("count: {count}\n{arg1:?}, {arg2:?}, {arg3:?}")).build())
         .await;
 
     Ok(())

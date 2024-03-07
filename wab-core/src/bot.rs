@@ -11,7 +11,7 @@ use twilight_model::application::interaction::{
     Interaction, InteractionData, InteractionType,
 };
 use twilight_model::id::{marker::ApplicationMarker, Id};
-use typemap::{ShareMap, TypeMap};
+use typemap_rev::{TypeMap};
 
 pub struct EventDispatchContext {
     state: Arc<State>,
@@ -27,7 +27,7 @@ pub struct Bot {
 }
 impl Bot {
     fn new<'a>(groups: &[&'a Group]) -> Self {
-        let mut state: ShareMap = TypeMap::custom();
+        let mut state: TypeMap = TypeMap::new();
         let mut commands = Vec::new();
         let mut events: HashMap<EventType, Vec<EventFunction>> = HashMap::new();
 
