@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 wab = { path = "./wab" }
-tokio = { version = "1.33.0", features = ["full"] }
+tokio = { version = "1.36.0", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 typemap_rev = "0.3.0"
