@@ -262,7 +262,7 @@ struct GroupMacroArgs {
     commands: IdentList,
     #[darling(default)]
     events: IdentList,
-    init: Option<Ident>,
+    setup: Option<Ident>,
 }
 
 #[proc_macro_attribute]
@@ -299,7 +299,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         .collect();
     let category = attr_args.category;
 
-    let init = quote_option(&attr_args.init);
+    let setup = quote_option(&attr_args.setup);
 
     let build_events = Ident::new(
         &format!("wab_group_events_{}", &name_string),
@@ -334,7 +334,7 @@ pub fn group(attr: TokenStream, input: TokenStream) -> TokenStream {
         #visibility static #name: wab::Group = wab::Group {
             build_commands: #build_commands,
             build_events: #build_events,
-            init: #init,
+            setup: #setup,
         };
     })
     .into()

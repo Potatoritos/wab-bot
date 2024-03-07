@@ -1,4 +1,6 @@
-use crate::{Argument, Client, CommandContext, CommandHandler, EventFunction, Group, State};
+use crate::{
+    Argument, Client, CommandContext, CommandHandler, EventFunction, Group, SetupContext, State,
+};
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -11,7 +13,7 @@ use twilight_model::application::interaction::{
     Interaction, InteractionData, InteractionType,
 };
 use twilight_model::id::{marker::ApplicationMarker, Id};
-use typemap_rev::{TypeMap};
+use typemap_rev::TypeMap;
 
 pub struct EventDispatchContext {
     state: Arc<State>,
@@ -27,7 +29,7 @@ pub struct Bot {
 }
 impl Bot {
     fn new<'a>(groups: &[&'a Group]) -> Self {
-        let mut state: TypeMap = TypeMap::new();
+        let mut setup_ctx: SetupContext = SetupContext::new();
         let mut commands = Vec::new();
         let mut events: HashMap<EventType, Vec<EventFunction>> = HashMap::new();
 
@@ -41,14 +43,14 @@ impl Bot {
                     .or_insert(Vec::new())
                     .push(event.function);
             }
-            if let Some(init) = group.init {
-                init(&mut state);
+            if let Some(setup) = group.setup {
+                setup(&mut setup_ctx);
             }
         }
 
         Bot {
             state: Arc::new(State {
-                storage: RwLock::new(state),
+                storage: RwLock::new(setup_ctx.state)
             }),
             commands: Arc::new(CommandHandler::new(commands)),
             events: Arc::new(events),

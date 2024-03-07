@@ -1,5 +1,6 @@
 pub use wab_core::{
-    Argument, BoxedFuture, Command, CommandBuilder, CommandFunction, CommandResult, CommandContext, Group,
-    Parameter, ParameterChoice, ParameterChoiceType, ParameterType, Bot, Event
+    Argument, Bot, BoxedFuture, Command, CommandBuilder, CommandContext, CommandFunction,
+    CommandResult, Event, Group, Parameter, ParameterChoice, ParameterChoiceType, ParameterType,
+    SetupContext,
 };
-pub use wab_macro::{box_async, command, group, event};
+pub use wab_macro::{box_async, command, event, group};

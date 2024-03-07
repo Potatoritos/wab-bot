@@ -3,8 +3,9 @@ use tokio::sync::RwLock;
 use twilight_cache_inmemory::ResourceType;
 use twilight_gateway::Intents;
 use twilight_model::gateway::payload::incoming::MessageCreate;
-use typemap_rev::{TypeMapKey, TypeMap};
 use twilight_util::builder::InteractionResponseDataBuilder as ResponseBuilder;
+use typemap_rev::{TypeMap, TypeMapKey};
+use wab::SetupContext;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -47,8 +48,8 @@ impl TypeMapKey for CmdState {
     type Value = Arc<RwLock<CmdState>>;
 }
 
-fn init(state: &mut TypeMap) {
-    state.insert::<CmdState>(Arc::new(RwLock::new(CmdState { x: 5 })));
+fn setup(ctx: &mut SetupContext) {
+    ctx.create_state(CmdState { x: 5 });
 }
 
 #[wab::event]
@@ -60,7 +61,7 @@ async fn message_create(event: &Box<MessageCreate>) {
     category = "category here",
     commands(cmd, cmd2),
     events(message_create),
-    init = init
+    setup = setup
 )]
 pub struct CmdGroup;
 
@@ -104,8 +105,12 @@ pub async fn cmd(
     };
     println!("count: {}", count);
 
-    ctx.respond(ResponseBuilder::new().content(format!("count: {count}\n{arg1:?}, {arg2:?}, {arg3:?}")).build())
-        .await;
+    ctx.respond(
+        ResponseBuilder::new()
+            .content(format!("count: {count}\n{arg1:?}, {arg2:?}, {arg3:?}"))
+            .build(),
+    )
+    .await;
 
     Ok(())
 }

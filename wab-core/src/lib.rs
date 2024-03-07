@@ -16,6 +16,6 @@ pub use command::{BoxedFuture, Command, CommandBuilder, CommandFunction, Command
 pub use command_handler::CommandHandler;
 pub use context::CommandContext;
 pub use event::{Event, EventFunction};
-pub use group::Group;
+pub use group::{Group, SetupContext};
 pub use parameter::{Parameter, ParameterChoice, ParameterChoiceType, ParameterType};
 pub use state::State;
